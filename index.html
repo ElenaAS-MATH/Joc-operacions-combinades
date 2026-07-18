@@ -1,0 +1,1212 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Combina! — joc d'operacions combinades</title>
+<meta name="description" content="Joc d'operacions combinades amb 10 nivells: naturals, enters, fraccions i fraccions amb signe. Dos modes: resol l'operació i caça l'error.">
+
+<!--
+  ══════════════════════════════════════════════════════════════════════
+  COMBINA! — joc d'operacions combinades
+  Fitxer únic i autònom. Sense build, sense dependències de npm.
+
+  ── PUBLICAR A GITHUB PAGES ──────────────────────────────────────────
+  1. Puja aquest fitxer com a `index.html` a un repositori.
+  2. Settings ▸ Pages ▸ Source: «Deploy from a branch» ▸ `main`, carpeta `/root`.
+  3. Al cap d'un minut: https://ELTEUUSUARI.github.io/ELREPOSITORI/
+
+  ── INCRUSTAR EN UNA ALTRA WEB ───────────────────────────────────────
+  <iframe src="https://ELTEUUSUARI.github.io/ELREPOSITORI/"
+          width="100%" height="780" style="border:0;max-width:920px"
+          title="Combina! Joc d'operacions combinades" loading="lazy"></iframe>
+
+  Alçada mínima recomanada: 700 px (780 px còmode).
+  L'app no accedeix mai a window.parent. Si localStorage està bloquejat
+  dins de l'iframe, el progrés es desa en memòria i el joc segueix.
+
+  ── DEPENDÈNCIES ─────────────────────────────────────────────────────
+  KaTeX per CDN amb SRI. Si no carrega (aula sense internet), un
+  renderitzador de reserva en HTML/CSS dibuixa les mateixes fraccions.
+  Mai es mostra \frac{}{} en cru ni «2/3» en text pla.
+  ══════════════════════════════════════════════════════════════════════
+-->
+
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"
+      integrity="sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV"
+      crossorigin="anonymous"
+      onerror="window.__katexCSSFail=true">
+
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   SISTEMA DE DISSENY — «arcade de matemàtiques»
+   Colors vius sobre fons clar, cartes blanques amb vora gruixuda i
+   ombra sòlida desplaçada (els botons es premen de veritat).
+   Paleta:  violeta #6b4cf6 · turquesa #10b3a3 · taronja #ff9210
+            corall #ff5470 · verd #1fb965 · tinta #241d4f
+   Tipus:   Fredoka (display, rodona i juganera) + Nunito (cos)
+   Cada grup de nivells té el seu color: la progressió es VEU.
+   ═══════════════════════════════════════════════════════════════ */
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@500;700;800&display=swap');
+
+:root{
+  --fons:#eef0ff;
+  --carta:#ffffff;
+  --tinta:#241d4f;
+  --tinta-suau:#6b6592;
+  --vora:#241d4f;
+  --violeta:#6b4cf6;
+  --violeta-clar:#efeaff;
+  --turquesa:#10b3a3;
+  --turquesa-clar:#e2faf7;
+  --blau:#3d7ff2;
+  --blau-clar:#e8f0fe;
+  --taronja:#ff9210;
+  --taronja-clar:#fff2e0;
+  --corall:#ff5470;
+  --corall-clar:#ffe9ed;
+  --verd:#1fb965;
+  --verd-clar:#e4f8ed;
+  --groc:#ffd23f;
+  --radi:16px;
+  --ombra:0 4px 0 var(--vora);
+  --ombra-gran:0 6px 0 var(--vora);
+  --display:'Fredoka',system-ui,sans-serif;
+  --cos:'Nunito',system-ui,sans-serif;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+/* L'atribut hidden ha de guanyar SEMPRE: sense això, una classe amb
+   display:flex (com .passos) el sobreescriu i elements amagats queden
+   visibles. Va ser la causa que el mode B es veiés dins del mode A. */
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+
+body{
+  font-family:var(--cos);font-weight:500;color:var(--tinta);
+  background:var(--fons);
+  /* Confeti matemàtic fix de fons: convida a jugar sense distreure. */
+  background-image:
+    radial-gradient(circle 3px at 12% 18%, #c9bfff 98%, transparent),
+    radial-gradient(circle 4px at 84% 12%, #9fe8e0 98%, transparent),
+    radial-gradient(circle 3px at 70% 80%, #ffd9a8 98%, transparent),
+    radial-gradient(circle 4px at 22% 76%, #ffc2cd 98%, transparent),
+    radial-gradient(circle 3px at 50% 40%, #b9f2d4 98%, transparent),
+    radial-gradient(circle 3px at 92% 55%, #c9bfff 98%, transparent);
+  background-attachment:fixed;
+  line-height:1.5;min-height:100vh;padding:18px 14px;
+}
+
+.taulell{max-width:880px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+
+.carta{
+  background:var(--carta);border:3px solid var(--vora);
+  border-radius:var(--radi);box-shadow:var(--ombra);
+}
+
+/* ── Capçalera ────────────────────────────────────────────────── */
+header.carta{
+  padding:16px 22px;display:flex;flex-wrap:wrap;gap:10px 16px;
+  align-items:center;justify-content:space-between;
+  background:linear-gradient(120deg,var(--violeta),#8f6bff);
+  color:#fff;border-color:var(--vora);
+}
+h1{
+  font-family:var(--display);font-weight:700;
+  font-size:clamp(1.5rem,4.5vw,2rem);letter-spacing:.01em;
+  text-shadow:0 2px 0 rgba(36,29,79,.35);
+}
+h1 .tro{display:inline-block;transform:rotate(-8deg);color:var(--groc)}
+.subtitol{font-size:.85rem;font-weight:700;opacity:.92}
+
+/* ── Controls ─────────────────────────────────────────────────── */
+.controls{padding:16px 20px;display:flex;flex-direction:column;gap:14px}
+.fila{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.etiq{
+  font-family:var(--display);font-size:.8rem;font-weight:600;
+  letter-spacing:.05em;text-transform:uppercase;color:var(--tinta-suau);
+  flex:0 0 76px;
+}
+
+/* Botons de joc: ombra sòlida que es prem */
+.btn{
+  font-family:var(--display);font-weight:600;font-size:.95rem;
+  padding:11px 20px;border:3px solid var(--vora);border-radius:14px;
+  background:var(--violeta);color:#fff;cursor:pointer;
+  box-shadow:var(--ombra);transition:transform .08s,box-shadow .08s;
+}
+.btn:hover{filter:brightness(1.06)}
+.btn:active{transform:translateY(4px);box-shadow:0 0 0 var(--vora)}
+.btn.sec{background:#fff;color:var(--tinta)}
+.btn.sec:hover{background:var(--violeta-clar)}
+
+/* Selector de mode: dues fitxes grans */
+.modes{display:flex;gap:10px;flex-wrap:wrap}
+.modes button{
+  font-family:var(--display);font-weight:600;font-size:.92rem;
+  padding:10px 18px;border:3px solid var(--vora);border-radius:14px;
+  background:#fff;color:var(--tinta);cursor:pointer;
+  box-shadow:var(--ombra);transition:transform .08s,box-shadow .08s,background .12s;
+  display:flex;align-items:center;gap:8px;
+}
+.modes button:active{transform:translateY(4px);box-shadow:0 0 0 var(--vora)}
+.modes button[aria-pressed="true"]{background:var(--groc)}
+.modes .ico{font-size:1.05rem}
+
+/* Nivells: fitxes de colors per conjunt numèric — la progressió es veu */
+.nivells{display:flex;gap:7px;flex-wrap:wrap}
+.nivells button{
+  font-family:var(--display);font-weight:700;font-size:1rem;
+  width:42px;height:42px;border:3px solid var(--vora);border-radius:12px;
+  cursor:pointer;box-shadow:0 3px 0 var(--vora);
+  transition:transform .08s,box-shadow .08s;color:var(--tinta);
+}
+.nivells button:active{transform:translateY(3px);box-shadow:0 0 0 var(--vora)}
+.nivells button.g1{background:var(--turquesa-clar)}
+.nivells button.g2{background:var(--blau-clar)}
+.nivells button.g3{background:var(--taronja-clar)}
+.nivells button.g4{background:var(--violeta-clar)}
+.nivells button[aria-pressed="true"].g1{background:var(--turquesa);color:#fff}
+.nivells button[aria-pressed="true"].g2{background:var(--blau);color:#fff}
+.nivells button[aria-pressed="true"].g3{background:var(--taronja);color:#fff}
+.nivells button[aria-pressed="true"].g4{background:var(--violeta);color:#fff}
+
+.llegenda{display:flex;flex-wrap:wrap;gap:8px 14px;font-size:.74rem;font-weight:700;color:var(--tinta-suau)}
+.llegenda .pip{display:inline-block;width:10px;height:10px;border-radius:3px;border:2px solid var(--vora);margin-right:4px;vertical-align:-1px}
+.pip.g1{background:var(--turquesa)} .pip.g2{background:var(--blau)}
+.pip.g3{background:var(--taronja)} .pip.g4{background:var(--violeta)}
+
+/* ── Zona de joc ──────────────────────────────────────────────── */
+.joc{padding:18px 20px 22px}
+.repte-cap{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.medalla{
+  font-family:var(--display);font-weight:700;font-size:.8rem;
+  background:var(--groc);border:3px solid var(--vora);border-radius:999px;
+  padding:4px 14px;box-shadow:0 3px 0 var(--vora);
+}
+.enunciat{font-weight:800;font-size:.95rem}
+
+.operacio{
+  border:3px solid var(--vora);border-radius:var(--radi);
+  background:linear-gradient(180deg,#fff, var(--violeta-clar));
+  box-shadow:var(--ombra);
+  padding:22px 18px;overflow-x:auto;overflow-y:hidden;
+  font-size:clamp(1.05rem,2.8vw,1.4rem);
+  min-height:76px;display:flex;align-items:center;
+  -webkit-overflow-scrolling:touch;
+}
+.operacio .katex{font-size:1em}
+
+/* ── Passos del mode B: escala de fitxes clicables ────────────── */
+.passos{list-style:none;margin-top:14px;display:flex;flex-direction:column;gap:10px}
+.pas{
+  display:block;width:100%;text-align:left;font:inherit;
+  background:#fff;border:3px solid var(--vora);border-radius:14px;
+  cursor:pointer;padding:0;box-shadow:var(--ombra);
+  transition:transform .08s,box-shadow .08s,background .12s;position:relative;
+}
+.pas:hover:not(:disabled){background:var(--blau-clar)}
+.pas:active:not(:disabled){transform:translateY(4px);box-shadow:0 0 0 var(--vora)}
+.pas:disabled{cursor:default}
+.pas-int{display:flex;align-items:center;gap:12px;padding:10px 14px;min-height:56px}
+.pas-num{
+  flex:0 0 34px;height:34px;display:flex;align-items:center;justify-content:center;
+  font-family:var(--display);font-weight:700;font-size:.95rem;
+  background:var(--violeta-clar);border:2.5px solid var(--vora);border-radius:10px;
+}
+.pas-mat{flex:1 1 auto;overflow-x:auto;overflow-y:hidden;padding:2px 0;-webkit-overflow-scrolling:touch}
+.pas[data-estat="descartat"]{opacity:.45;background:var(--corall-clar)}
+.pas[data-estat="descartat"] .pas-num{background:var(--corall);color:#fff}
+.pas[data-estat="trobat"]{background:var(--verd-clar)}
+.pas[data-estat="trobat"] .pas-num{background:var(--verd);color:#fff}
+.pas[data-estat="revelat"]{background:var(--corall-clar)}
+.pas[data-estat="revelat"] .pas-num{background:var(--corall);color:#fff}
+.pas-etiq{
+  flex:0 0 auto;font-family:var(--display);font-size:.72rem;font-weight:600;
+  padding:4px 10px;border-radius:999px;border:2.5px solid var(--vora);
+}
+.pas[data-estat="trobat"] .pas-etiq{background:var(--verd);color:#fff}
+.pas[data-estat="revelat"] .pas-etiq{background:var(--corall);color:#fff}
+
+/* ── Resposta (mode A): entrada adaptativa ────────────────────── */
+.resposta{margin-top:18px;display:flex;flex-wrap:wrap;gap:16px;align-items:center}
+.camps{display:flex;align-items:center;gap:12px}
+.signe{
+  font-family:var(--display);font-size:1.6rem;font-weight:700;
+  width:56px;border:3px solid var(--vora);border-radius:14px;
+  background:#fff;color:var(--tinta);cursor:pointer;
+  box-shadow:var(--ombra);transition:transform .08s,box-shadow .08s;
+  align-self:stretch;
+}
+.signe:active{transform:translateY(4px);box-shadow:0 0 0 var(--vora)}
+.signe[data-signe="-"]{background:var(--corall);color:#fff}
+.signe[hidden]{display:none}
+
+.frac-in{display:flex;flex-direction:column;align-items:center}
+.frac-in input{
+  font-family:var(--display);font-size:1.45rem;font-weight:600;text-align:center;
+  width:104px;padding:7px 6px;border:3px solid var(--vora);
+  border-radius:12px;background:#fff;color:var(--tinta);
+  box-shadow:inset 0 2px 0 rgba(36,29,79,.08);
+}
+.frac-in input:focus{outline:3px solid var(--blau);outline-offset:2px}
+.frac-barra{width:112px;height:4px;background:var(--vora);border-radius:2px;margin:6px 0}
+/* En nivells sense fraccions (1–4) la barra i el denominador s'amaguen:
+   demanar numerador/denominador quan encara no s'han vist les fraccions
+   confondria. */
+.frac-in[data-frac="0"] .frac-barra,
+.frac-in[data-frac="0"] .den-camp{display:none}
+.frac-nota{font-size:.68rem;font-weight:700;color:var(--tinta-suau);margin-top:6px;text-align:center;max-width:118px;line-height:1.3}
+
+.accions{display:flex;gap:10px;flex-wrap:wrap;margin-left:auto}
+
+/* ── Retorn: cartell gran de joc ──────────────────────────────── */
+.retorn{margin-top:16px;overflow:hidden;max-height:0;transition:max-height .25s ease}
+.retorn[data-obert="1"]{max-height:420px}
+.retorn-int{
+  padding:16px 18px;border:3px solid var(--vora);border-radius:var(--radi);
+  box-shadow:var(--ombra);
+}
+.retorn[data-to="be"] .retorn-int{background:var(--verd-clar)}
+.retorn[data-to="mal"] .retorn-int{background:var(--corall-clar)}
+.retorn-cap{
+  font-family:var(--display);font-size:1.35rem;font-weight:700;
+  display:flex;align-items:center;gap:10px;
+}
+.retorn[data-to="be"] .retorn-cap{color:var(--verd)}
+.retorn[data-to="mal"] .retorn-cap{color:var(--corall)}
+@keyframes salt{0%{transform:scale(.6)}55%{transform:scale(1.15)}100%{transform:scale(1)}}
+.retorn[data-obert="1"] .retorn-cap{animation:salt .3s ease}
+.retorn-cos{font-size:.88rem;font-weight:700;color:var(--tinta);margin-top:6px}
+.retorn-mat{margin-top:8px}
+
+/* ── Progrés ──────────────────────────────────────────────────── */
+footer.carta{
+  padding:14px 20px;display:flex;flex-wrap:wrap;gap:14px;
+  align-items:center;justify-content:space-between;
+}
+.sw-camp{display:flex;align-items:center;gap:10px}
+.sw{
+  width:50px;height:28px;border-radius:999px;border:3px solid var(--vora);
+  background:#fff;cursor:pointer;padding:2px;transition:background .14s;flex:0 0 auto;
+}
+.sw::after{content:'';display:block;width:18px;height:18px;border-radius:50%;background:var(--tinta-suau);border:2px solid var(--vora);transition:transform .14s,background .14s}
+.sw[aria-checked="true"]{background:var(--verd)}
+.sw[aria-checked="true"]::after{transform:translateX(20px);background:#fff}
+.sw-etiq{font-family:var(--display);font-size:.85rem;font-weight:600}
+.sw-ajuda{font-size:.7rem;font-weight:700;color:var(--tinta-suau);max-width:46ch;line-height:1.35}
+
+.marcador{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.stat{
+  text-align:center;background:var(--violeta-clar);border:3px solid var(--vora);
+  border-radius:12px;padding:6px 14px;box-shadow:0 3px 0 var(--vora);min-width:72px;
+}
+.stat-n{font-family:var(--display);font-size:1.25rem;font-weight:700;line-height:1}
+.stat-e{font-size:.6rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--tinta-suau);margin-top:2px}
+.btn-mini{
+  font-family:var(--display);font-size:.75rem;font-weight:600;
+  padding:8px 12px;border:3px solid var(--vora);background:#fff;color:var(--tinta);
+  border-radius:10px;cursor:pointer;box-shadow:0 3px 0 var(--vora);
+  transition:transform .08s,box-shadow .08s;
+}
+.btn-mini:active{transform:translateY(3px);box-shadow:0 0 0 var(--vora)}
+.btn-mini:hover{background:var(--corall-clar)}
+
+.avis{
+  padding:10px 14px;border-radius:12px;font-size:.75rem;font-weight:700;
+  background:var(--blau-clar);border:3px solid var(--vora);color:var(--tinta);
+  box-shadow:var(--ombra);
+}
+
+/* Focus visible per a navegació amb teclat */
+.btn:focus-visible,.pas:focus-visible,.nivells button:focus-visible,
+.modes button:focus-visible,.signe:focus-visible,.sw:focus-visible,
+.btn-mini:focus-visible{outline:3px solid var(--blau);outline-offset:3px}
+
+/* ── Llicència ────────────────────────────────────────────────── */
+.llicencia{
+  font-size:.72rem;font-weight:700;color:var(--tinta-suau);
+  text-align:center;padding:2px 8px 6px;line-height:1.6;
+}
+.llicencia a{color:var(--violeta)}
+.llicencia img{vertical-align:-2px}
+
+/* ── Fracció de reserva (sense KaTeX) ─────────────────────────── */
+.fb{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;margin:0 .12em;line-height:1.15}
+.fb-n{padding:0 .3em;font-size:.85em;font-weight:700}
+.fb-d{padding:0 .3em;font-size:.85em;font-weight:700;border-top:2px solid currentColor}
+.fb-w{white-space:nowrap;font-weight:700}
+.fb-sup{font-size:.68em;vertical-align:super;line-height:0;font-weight:800}
+
+@media (max-width:560px){
+  body{padding:10px 8px}
+  .taulell{gap:12px}
+  header.carta{padding:13px 16px}
+  .controls{padding:13px 14px}
+  .joc{padding:14px 14px 18px}
+  footer.carta{padding:12px 14px}
+  .etiq{flex-basis:100%}
+  .accions{margin-left:0;width:100%}
+  .accions .btn{flex:1 1 auto}
+  .nivells button{width:38px;height:38px}
+  .frac-in input{width:86px;font-size:1.3rem}
+  .frac-barra{width:94px}
+  .frac-nota{max-width:100px}
+  .pas-num{flex-basis:30px;height:30px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::after{transition:none!important;animation:none!important}
+}
+</style>
+</head>
+<body>
+
+<div class="taulell">
+  <header class="carta">
+    <h1><span class="tro">✱</span> Combina!</h1>
+    <div class="subtitol">Joc d'operacions combinades · 10 nivells</div>
+  </header>
+
+  <div class="carta controls">
+    <div class="fila">
+      <span class="etiq">Mode</span>
+      <div class="modes" role="group" aria-label="Mode de joc">
+        <button id="mA" aria-pressed="true"><span class="ico">🎯</span> Resol l'operació</button>
+        <button id="mB" aria-pressed="false"><span class="ico">🔍</span> Caça l'error</button>
+      </div>
+    </div>
+    <div class="fila">
+      <span class="etiq">Nivell</span>
+      <div class="nivells" id="nivells" role="group" aria-label="Nivell de dificultat"></div>
+    </div>
+    <div class="llegenda">
+      <span><span class="pip g1"></span><b>1–2</b> naturals</span>
+      <span><span class="pip g2"></span><b>3–4</b> enters</span>
+      <span><span class="pip g3"></span><b>5–6</b> fraccions</span>
+      <span><span class="pip g4"></span><b>7–10</b> fraccions amb signe i potències</span>
+    </div>
+  </div>
+
+  <div class="avis" id="avisKatex" hidden>
+    Les matemàtiques es dibuixen amb el format de reserva perquè no s'ha pogut carregar la tipografia matemàtica. El joc funciona igual.
+  </div>
+
+  <div class="carta joc">
+    <div class="repte-cap">
+      <span class="medalla" id="medalla">Nivell 1</span>
+      <span class="enunciat" id="enunciat">Calcula el resultat</span>
+    </div>
+    <div class="operacio" id="operacio" aria-live="polite"></div>
+
+    <ol class="passos" id="passos" hidden></ol>
+
+    <div class="resposta" id="resposta">
+      <div class="camps">
+        <button class="signe" id="signe" data-signe="+" aria-label="Canvia el signe de la resposta. Ara és positiu.">+</button>
+        <div class="frac-in" id="fracIn" data-frac="0">
+          <input id="num" type="text" inputmode="numeric" autocomplete="off" aria-label="Resultat" placeholder="0">
+          <div class="frac-barra" aria-hidden="true"></div>
+          <span class="den-camp"><input id="den" type="text" inputmode="numeric" autocomplete="off" aria-label="Denominador" placeholder="1"></span>
+          <div class="frac-nota" id="fracNota">Escriu el resultat</div>
+        </div>
+      </div>
+      <div class="accions">
+        <button class="btn" id="comprova">Comprova ✓</button>
+        <button class="btn sec" id="nova">Una altra!</button>
+      </div>
+    </div>
+
+    <div class="accions" id="accionsB" style="margin-top:16px" hidden>
+      <button class="btn sec" id="novaB">Una altra!</button>
+    </div>
+
+    <div class="retorn" id="retorn" data-obert="0" aria-live="assertive">
+      <div class="retorn-int">
+        <div class="retorn-cap" id="retornCap"></div>
+        <div class="retorn-cos" id="retornCos"></div>
+        <div class="retorn-mat" id="retornMat"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="carta">
+    <div class="sw-camp">
+      <button class="sw" id="sw" role="switch" aria-checked="false" aria-label="Control del progrés"></button>
+      <div>
+        <div class="sw-etiq">Control del progrés</div>
+        <div class="sw-ajuda" id="swAjuda">Desactivat. Cada partida comença de zero.</div>
+      </div>
+    </div>
+    <div class="marcador" id="marcador" hidden>
+      <div class="stat"><div class="stat-n" id="sRatxa">0</div><div class="stat-e">Ratxa</div></div>
+      <div class="stat"><div class="stat-n" id="sEncerts">0</div><div class="stat-e">Encerts</div></div>
+      <div class="stat"><div class="stat-n" id="sIntents">0</div><div class="stat-e">Intents</div></div>
+      <button class="btn-mini" id="esborra">Esborra les dades</button>
+    </div>
+  </footer>
+
+  <div class="llicencia">
+    <a href="https://elenaas-math.github.io/">Autoria:</a> © 2026 by <a href="https://elenaas-math.github.io/">Elena Álvarez Spagnolo</a> is licensed under <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/">CC BY-NC-ND 4.0</a><img src="https://mirrors.creativecommons.org/presskit/icons/cc.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;"><img src="https://mirrors.creativecommons.org/presskit/icons/by.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;"><img src="https://mirrors.creativecommons.org/presskit/icons/nc.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;"><img src="https://mirrors.creativecommons.org/presskit/icons/nd.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;">
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"
+        integrity="sha384-XjKyOOlGwcjNTAIQHIpgOno0Hl1YQqzUOEleOLALmuqehneUG+vnGctmUb0ZY0l8"
+        crossorigin="anonymous"
+        onerror="window.__katexJSFail=true"></script>
+
+<script>
+'use strict';
+
+/* ═══════════════════════════════════════════════════════════════════
+   1. ARITMÈTICA RACIONAL EXACTA (BigInt). Cap coma flotant enlloc:
+   en una eina que corregeix alumnat, un 0.30000000000000004 és
+   inacceptable.
+   ═══════════════════════════════════════════════════════════════════ */
+function bgcd(a,b){a=a<0n?-a:a;b=b<0n?-b:b;while(b){const t=a%b;a=b;b=t}return a}
+function babs(a){return a<0n?-a:a}
+
+class Fraccio{
+  constructor(n,d=1n){
+    n=BigInt(n); d=BigInt(d);
+    if(d===0n) throw new Error('DIV0');
+    if(d<0n){n=-n;d=-d}
+    const g=bgcd(n,d)||1n;
+    this.n=n/g; this.d=d/g;
+  }
+  suma(o){return new Fraccio(this.n*o.d+o.n*this.d,this.d*o.d)}
+  resta(o){return new Fraccio(this.n*o.d-o.n*this.d,this.d*o.d)}
+  mult(o){return new Fraccio(this.n*o.n,this.d*o.d)}
+  div(o){if(o.n===0n)throw new Error('DIV0');return new Fraccio(this.n*o.d,this.d*o.n)}
+  pot(e){e=BigInt(e);
+    if(e===0n){if(this.n===0n)throw new Error('DIV0');return new Fraccio(1n,1n)}
+    if(e<0n){if(this.n===0n)throw new Error('DIV0');return new Fraccio(this.d**(-e),this.n**(-e))}
+    return new Fraccio(this.n**e,this.d**e)}
+  neg(){return new Fraccio(-this.n,this.d)}
+  esZero(){return this.n===0n}
+  igual(o){return this.n===o.n&&this.d===o.d}
+  xifresMax(){const a=String(babs(this.n)).length,b=String(this.d).length;return a>b?a:b}
+}
+const F=(n,d)=>new Fraccio(n,d);
+const ri=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
+const tria=a=>a[Math.floor(Math.random()*a.length)];
+const barreja=a=>a.slice().sort(()=>Math.random()-0.5);
+
+/* ═══════════════════════════════════════════════════════════════════
+   2. CONFIGURACIÓ DELS 10 NIVELLS
+   Dos eixos de progressió alhora: conjunt numèric (naturals → enters
+   → fraccions → fraccions amb signe) i estructura (pla → un nivell de
+   parèntesis → dos → tres). `senseNegatius` i `senseFraccions`
+   garanteixen que CAP pas intermedi surt del conjunt que l'alumnat
+   coneix al nivell.
+   Per a la interfície: `frac` = cal entrada de fracció; `signe` = cal
+   botó de signe (només on hi poden haver resultats negatius).
+   ═══════════════════════════════════════════════════════════════════ */
+const CONFIG={
+  1:{tipus:'natural',ops:['+','-','*'],profMax:9,termes:4,maxNat:12,maxDen:1,pot:false,exponents:[],maxXifresRes:4,maxXifresInt:4,exigeixParentesi:false,pla:true,senseNegatius:true,senseFraccions:true,frac:false,signe:false,grup:'g1',desc:'Naturals · sense parèntesis'},
+  2:{tipus:'natural',ops:['+','-','*','/'],profMax:2,termes:5,maxNat:12,maxDen:1,pot:false,exponents:[],maxXifresRes:4,maxXifresInt:4,exigeixParentesi:true,senseNegatius:true,senseFraccions:true,frac:false,signe:false,grup:'g1',desc:'Naturals · ( )'},
+  3:{tipus:'enter',ops:['+','-','*'],profMax:2,termes:5,maxNat:10,maxDen:1,pot:false,exponents:[],maxXifresRes:4,maxXifresInt:4,exigeixParentesi:true,senseFraccions:true,frac:false,signe:true,grup:'g2',desc:'Enters · ( )'},
+  4:{tipus:'enter',ops:['+','-','*','/'],profMax:3,termes:6,maxNat:10,maxDen:1,pot:false,exponents:[],maxXifresRes:4,maxXifresInt:4,exigeixParentesi:true,senseFraccions:true,frac:false,signe:true,grup:'g2',desc:'Enters · ( ) [ ]'},
+  5:{tipus:'fraccio',ops:['+','-','*'],profMax:2,termes:5,maxNat:6,maxDen:8,pot:false,exponents:[],maxXifresRes:4,maxXifresInt:4,exigeixParentesi:true,senseNegatius:true,frac:true,signe:false,grup:'g3',desc:'Fraccions · ( )'},
+  6:{tipus:'fraccio',ops:['+','-','*','/'],profMax:3,termes:6,maxNat:6,maxDen:8,pot:false,exponents:[],maxXifresRes:4,maxXifresInt:4,exigeixParentesi:true,senseNegatius:true,frac:true,signe:false,grup:'g3',desc:'Fraccions · ( ) [ ]'},
+  7:{tipus:'fraccioSigne',ops:['+','-','*','/'],profMax:3,termes:6,maxNat:5,maxDen:6,pot:true,exponents:[2,3],maxXifresRes:4,maxXifresInt:4,exigeixParentesi:true,frac:true,signe:true,grup:'g4',desc:'Fraccions amb signe · potències'},
+  8:{tipus:'fraccioSigne',ops:['+','-','*','/'],profMax:4,termes:7,maxNat:5,maxDen:6,pot:true,exponents:[2,3],maxXifresRes:4,maxXifresInt:4,exigeixParentesi:true,frac:true,signe:true,grup:'g4',desc:'Fraccions amb signe · ( ) [ ] { }'},
+  9:{tipus:'fraccioSigne',ops:['+','-','*','/'],profMax:4,termes:9,maxNat:4,maxDen:5,pot:true,exponents:[2,3,-1,-2],maxXifresRes:4,maxXifresInt:6,exigeixParentesi:true,frac:true,signe:true,grup:'g4',desc:'Fraccions amb signe · exponent negatiu'},
+  10:{tipus:'fraccioSigne',ops:['+','-','*','/'],profMax:4,termes:11,maxNat:4,maxDen:5,pot:true,exponents:[2,3,-1,-2],maxXifresRes:4,maxXifresInt:6,exigeixParentesi:true,frac:true,signe:true,grup:'g4',desc:'Fraccions amb signe · expressió llarga'}
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   3. GENERACIÓ D'EXPRESSIONS (arbre generat per procediment)
+   ═══════════════════════════════════════════════════════════════════ */
+function fulla(nivell){
+  const c=CONFIG[nivell];
+  if(c.tipus==='natural') return{t:'num',v:F(BigInt(ri(1,c.maxNat)))};
+  if(c.tipus==='enter'){let v=ri(-c.maxNat,c.maxNat); if(v===0)v=ri(1,c.maxNat); return{t:'num',v:F(BigInt(v))}}
+  const pEnter=c.tipus==='fraccio'?0.30:0.25;
+  if(Math.random()<pEnter){
+    let v=ri(1,c.maxNat);
+    if(c.tipus==='fraccioSigne'&&Math.random()<0.5)v=-v;
+    return{t:'num',v:F(BigInt(v))};
+  }
+  const d=ri(2,c.maxDen);
+  let n=ri(1,c.maxDen);
+  while(n%d===0) n=ri(1,c.maxDen);
+  if(c.tipus==='fraccioSigne'&&Math.random()<0.5)n=-n;
+  return{t:'num',v:F(BigInt(n),BigInt(d))};
+}
+function construeixPla(nivell,nTermes){
+  const c=CONFIG[nivell];
+  const toks=[fulla(nivell)];
+  for(let i=1;i<nTermes;i++){toks.push(tria(c.ops));toks.push(fulla(nivell))}
+  const p=[toks[0]];
+  for(let i=1;i<toks.length;i+=2){
+    const op=toks[i],b=toks[i+1];
+    if(op==='*'||op==='/') p[p.length-1]={t:'op',op,a:p[p.length-1],b};
+    else{p.push(op);p.push(b)}
+  }
+  let node=p[0];
+  for(let i=1;i<p.length;i+=2) node={t:'op',op:p[i],a:node,b:p[i+1]};
+  return node;
+}
+function construeix(nivell,prof,termesRestants){
+  const c=CONFIG[nivell];
+  if(c.pla&&prof===0) return construeixPla(nivell,c.termes);
+  if(termesRestants<=1||prof>=c.profMax) return fulla(nivell);
+  const esq=Math.max(1,Math.floor(termesRestants/2)+ri(-1,1));
+  const dre=Math.max(1,termesRestants-esq);
+  const op=tria(c.ops);
+  if(c.pot&&Math.random()<0.12&&prof>0){
+    return{t:'op',op,a:{t:'pot',a:fulla(nivell),e:tria(c.exponents)},b:construeix(nivell,prof+1,dre)};
+  }
+  return{t:'op',op,a:construeix(nivell,prof+1,esq),b:construeix(nivell,prof+1,dre)};
+}
+function avalua(n){
+  if(n.t==='num')return n.v;
+  if(n.t==='pot')return avalua(n.a).pot(n.e);
+  const A=avalua(n.a),B=avalua(n.b);
+  if(n.op==='+')return A.suma(B);
+  if(n.op==='-')return A.resta(B);
+  if(n.op==='*')return A.mult(B);
+  return A.div(B);
+}
+function totsIntermedis(n,acc=[]){
+  if(n.t==='num'){acc.push(n.v);return acc}
+  if(n.t==='pot'){totsIntermedis(n.a,acc);acc.push(avalua(n));return acc}
+  totsIntermedis(n.a,acc);totsIntermedis(n.b,acc);acc.push(avalua(n));return acc;
+}
+function teParentesi(n){return n.t==='op'&&(n.a.t==='op'||n.b.t==='op')}
+function comptaTermes(n){
+  if(n.t==='num')return 1;
+  if(n.t==='pot')return comptaTermes(n.a);
+  return comptaTermes(n.a)+comptaTermes(n.b);
+}
+function llistaPlana(n,out=[]){
+  if(n.t==='num'){out.push({v:n.v});return out}
+  if(n.t==='pot'){out.push({v:avalua(n)});return out}
+  llistaPlana(n.a,out);out.push({op:n.op});llistaPlana(n.b,out);return out;
+}
+/* Ignorant els parèntesis: si dona el mateix, l'operació no ensenya
+   res sobre parèntesis i es descarta. */
+function avaluaPla(node){
+  const toks=llistaPlana(node),p=[];
+  for(let i=0;i<toks.length;i++){
+    const t=toks[i];
+    if(t.op==='*'||t.op==='/'){
+      const A=p.pop().v,B=toks[++i].v;
+      if(t.op==='/'&&B.esZero())throw new Error('DIV0');
+      p.push({v:t.op==='*'?A.mult(B):A.div(B)});
+    } else p.push(t);
+  }
+  let acc=p[0].v;
+  for(let i=1;i<p.length;i+=2) acc=p[i].op==='+'?acc.suma(p[i+1].v):acc.resta(p[i+1].v);
+  return acc;
+}
+/* Ignorant la prioritat (esquerra a dreta): per al nivell 1, sense
+   parèntesis, ha de discriminar per prioritat d'operacions. */
+function avaluaEsqDre(node){
+  const toks=llistaPlana(node);
+  let acc=toks[0].v;
+  for(let i=1;i<toks.length;i+=2){
+    const op=toks[i].op,B=toks[i+1].v;
+    if(op==='+')acc=acc.suma(B);
+    else if(op==='-')acc=acc.resta(B);
+    else if(op==='*')acc=acc.mult(B);
+    else{if(B.esZero())throw new Error('DIV0');acc=acc.div(B)}
+  }
+  return acc;
+}
+function validaExpressio(node,nivell){
+  const c=CONFIG[nivell];
+  let res;
+  try{res=avalua(node)}catch(e){return{ok:false}}
+  for(const f of totsIntermedis(node)){
+    if(f.xifresMax()>c.maxXifresInt)return{ok:false};
+    if(c.senseNegatius&&f.n<0n)return{ok:false};
+    if(c.senseFraccions&&f.d!==1n)return{ok:false};
+  }
+  if(c.senseNegatius&&res.n<0n)return{ok:false};
+  if(res.xifresMax()>c.maxXifresRes)return{ok:false};
+  if(c.exigeixParentesi){
+    if(!teParentesi(node))return{ok:false};
+    try{if(avaluaPla(node).igual(res))return{ok:false}}catch(e){}
+  }else{
+    try{if(avaluaEsqDre(node).igual(res))return{ok:false}}catch(e){}
+  }
+  return{ok:true,res};
+}
+function generaExpressio(nivell){
+  const c=CONFIG[nivell];
+  for(let i=0;i<4000;i++){
+    const node=construeix(nivell,0,c.termes);
+    const v=validaExpressio(node,nivell);
+    if(!v.ok)continue;
+    if(comptaTermes(node)<Math.max(3,c.termes-3))continue;
+    return{node,res:v.res};
+  }
+  return null;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   4. RESOLUCIÓ PAS A PAS — cada pas resol una capa sencera: tots els
+   nodes de màxima prioritat amb els dos operands ja calculats, com fa
+   una persona (parèntesis interiors → potències → × ÷ → + −).
+   ═══════════════════════════════════════════════════════════════════ */
+const esNum=n=>n.t==='num';
+function clona(n){
+  if(n.t==='num')return{t:'num',v:n.v};
+  if(n.t==='pot')return{t:'pot',a:clona(n.a),e:n.e};
+  return{t:'op',op:n.op,a:clona(n.a),b:clona(n.b)};
+}
+function prioNode(n){
+  if(n.t==='pot')return 3;
+  return(n.op==='*'||n.op==='/')?2:1;
+}
+function reduibles(n,out=[]){
+  if(esNum(n))return out;
+  if(n.t==='pot'){esNum(n.a)?out.push(n):reduibles(n.a,out);return out}
+  if(esNum(n.a)&&esNum(n.b)){out.push(n);return out}
+  reduibles(n.a,out);reduibles(n.b,out);return out;
+}
+const motorOk={
+  op(op,A,B){if(op==='+')return A.suma(B);if(op==='-')return A.resta(B);if(op==='*')return A.mult(B);return A.div(B)},
+  pot(A,e){return A.pot(e)}
+};
+function reduirCapa(node,motor){
+  const c=reduibles(node);
+  if(!c.length)return null;
+  const maxP=Math.max.apply(null,c.map(prioNode));
+  const obj=new Set(c.filter(x=>prioNode(x)===maxP));
+  function r(n){
+    if(esNum(n))return n;
+    if(obj.has(n)){
+      if(n.t==='pot')return{t:'num',v:motor.pot(n.a.v,n.e,n)};
+      return{t:'num',v:motor.op(n.op,n.a.v,n.b.v,n)};
+    }
+    if(n.t==='pot')return{t:'pot',a:r(n.a),e:n.e};
+    return{t:'op',op:n.op,a:r(n.a),b:r(n.b)};
+  }
+  return r(node);
+}
+function passosCorrectes(node){
+  const l=[clona(node)];
+  let a=clona(node);
+  for(let i=0;i<20;i++){
+    const s=reduirCapa(a,motorOk);
+    if(!s)break;
+    a=s;l.push(clona(a));
+    if(esNum(a))break;
+  }
+  return l;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   5. CATÀLEG D'ERRORS — cada un és una concepció errònia documentada,
+   no soroll aleatori. Els conceptuals tenen preferència: l'error de
+   càlcul pur ('aritmetic') queda com a últim recurs.
+   ═══════════════════════════════════════════════════════════════════ */
+const ERRORS=[
+  {id:'signe-parentesi',nom:'Error de signe en treure el parèntesis',
+   expl:'En restar, cal canviar el signe de tot el que hi ha dins del parèntesis. Aquí s\'ha sumat en lloc de restar.',
+   aplica:(op,A,B)=>op==='-'&&!B.esZero(),
+   fer:(op,A,B)=>A.suma(B)},
+  {id:'suma-fraccions',nom:'Sumar numeradors i denominadors',
+   expl:'En sumar o restar fraccions no se sumen numeradors i denominadors per separat: primer cal reduir a denominador comú.',
+   aplica:(op,A,B)=>(op==='+'||op==='-')&&(A.d!==1n||B.d!==1n),
+   fer:(op,A,B)=>{const n=op==='+'?A.n+B.n:A.n-B.n,d=A.d+B.d;return d===0n?null:new Fraccio(n,d)}},
+  {id:'divisio-inversa',nom:'Invertir la fracció equivocada',
+   expl:'En dividir fraccions es multiplica la primera per la inversa de la SEGONA. Aquí s\'ha invertit la primera.',
+   aplica:(op,A,B)=>op==='/'&&!A.esZero()&&!B.esZero()&&!A.igual(B),
+   fer:(op,A,B)=>new Fraccio(A.d*B.n,A.n*B.d)},
+  {id:'producte-signes',nom:'Error de signe en el producte',
+   expl:'Menys per menys és més, i més per menys és menys. El signe d\'aquest pas està canviat.',
+   aplica:(op,A,B)=>(op==='*'||op==='/')&&(A.n<0n||B.n<0n),
+   fer:(op,A,B)=>{const r=op==='*'?A.mult(B):(B.esZero()?null:A.div(B));return r?r.neg():null}},
+  {id:'potencia-signe',nom:'Error de signe en la potència',
+   expl:'En elevar un nombre negatiu, el signe del resultat depèn de l\'exponent: parell dona positiu, senar dona negatiu.',
+   aplica:null,
+   ferPot:(A,e)=>A.n>=0n?null:A.pot(e).neg()},
+  {id:'aritmetic',nom:'Error de càlcul',
+   expl:'El plantejament d\'aquest pas és correcte, però el càlcul numèric no ho és.',
+   aplica:()=>true,
+   fer:(op,A,B)=>{const r=motorOk.op(op,A,B);if(!r)return null;const d=Math.random()<0.5?1n:-1n;return new Fraccio(r.n+d*r.d,r.d)}}
+];
+
+function generaAmbError(node){
+  const correctes=passosCorrectes(node);
+  if(correctes.length<4)return null;
+  const pasos=barreja(Array.from({length:correctes.length-1},(_,i)=>i+1));
+  for(const pas of pasos){
+    const previ=correctes[pas-1];
+    const cands=reduibles(previ);
+    if(!cands.length)continue;
+    const maxP=Math.max.apply(null,cands.map(prioNode));
+    const objectius=cands.filter(c=>prioNode(c)===maxP);
+    const diana=tria(objectius);
+    const conc=barreja(ERRORS.filter(e=>e.id!=='aritmetic'));
+    const arit=ERRORS.find(e=>e.id==='aritmetic');
+    const errs=Math.random()<0.12?[...conc.slice(0,2),arit,...conc.slice(2)]:[...conc,arit];
+    for(const err of errs){
+      let dolent=null;
+      if(diana.t==='pot'){
+        if(!err.ferPot)continue;
+        try{dolent=err.ferPot(diana.a.v,diana.e)}catch(e){continue}
+      }else{
+        if(err.id==='potencia-signe')continue;
+        if(!err.aplica||!err.aplica(diana.op,diana.a.v,diana.b.v))continue;
+        try{dolent=err.fer(diana.op,diana.a.v,diana.b.v)}catch(e){continue}
+      }
+      if(!dolent)continue;
+      let bo;
+      try{bo=diana.t==='pot'?diana.a.v.pot(diana.e):motorOk.op(diana.op,diana.a.v,diana.b.v)}catch(e){continue}
+      if(dolent.igual(bo))continue;
+      if(dolent.xifresMax()>6)continue;
+      const motorErr={
+        op(op,A,B,n){return n===diana?dolent:motorOk.op(op,A,B)},
+        pot(A,e,n){return n===diana?dolent:motorOk.pot(A,e)}
+      };
+      let linErr;
+      try{linErr=reduirCapa(previ,motorErr)}catch(e){continue}
+      if(!linErr)continue;
+      /* Propagació: a partir de l'error, el desenvolupament continua
+         correctament. Cal trobar la PRIMERA línia errònia, no «la que
+         no quadra». */
+      const linies=correctes.slice(0,pas).map(clona);
+      linies.push(clona(linErr));
+      let act=linErr,segur=true;
+      for(let i=0;i<20;i++){
+        let s;
+        try{s=reduirCapa(act,motorOk)}catch(e){segur=false;break}
+        if(!s)break;
+        act=s;
+        if(esNum(act)&&act.v.xifresMax()>8){segur=false;break}
+        linies.push(clona(act));
+        if(esNum(act))break;
+      }
+      if(!segur)continue;
+      if(!esNum(linies[linies.length-1]))continue;
+      if(linies.length<4||linies.length>9)continue;
+      /* Si l'error es cancel·la i el final coincideix amb el correcte,
+         la línia errònia seria indetectable. Es descarta. */
+      if(linies[linies.length-1].v.igual(correctes[correctes.length-1].v))continue;
+      return{linies,indexError:pas,error:err};
+    }
+  }
+  return null;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   6. RENDERITZAT MATEMÀTIC
+   Fraccions SEMPRE amb \dfrac (mai «2/3» en text pla).
+   Regles d'escriptura escolar:
+   · Un nombre negatiu darrere d'un operador va SEMPRE entre parèntesis:
+     8 − (−3), 5 · (−2). Mai dos signes seguits.
+   · Només el primer terme d'una expressió (o el primer de dins d'un
+     parèntesis) pot dur el signe a pèl: −3 + 5, 2 − (−3 + 5).
+   · La imbricació és ( ) → [ ] → { } i els parèntesis de signe compten
+     com a nivell: 2 − [3 + (−4)], com als llibres de text.
+   · Les bases negatives o fraccionàries d'una potència van entre
+     parèntesis: (−2)³, (2/3)².
+   Si KaTeX no carrega, el renderitzador de reserva en HTML/CSS aplica
+   exactament les mateixes regles.
+   ═══════════════════════════════════════════════════════════════════ */
+function prioTex(n){
+  if(n.t==='pot')return 3;
+  if(n.t!=='op')return 4;
+  return(n.op==='*'||n.op==='/')?2:1;
+}
+function calParens(fill,pareOp,esDret){
+  if(fill.t!=='op')return false;
+  const pf=prioTex(fill),pp=(pareOp==='*'||pareOp==='/')?2:1;
+  return pf<pp||(pf===pp&&esDret&&(pareOp==='-'||pareOp==='/'));
+}
+
+/* — variant LaTeX — */
+const PAR_TEX=[['\\left(','\\right)'],['\\left[','\\right]'],['\\left\\{','\\right\\}']];
+const OP_TEX={'+':'+','-':'-','*':'\\cdot','/':':'} ;
+function fracTex(f){
+  const neg=f.n<0n,an=babs(f.n);
+  return{neg,cos:f.d===1n?String(an):`\\dfrac{${an}}{${f.d}}`};
+}
+function rTex(n,esPrimer){
+  if(n.t==='num'){
+    const{neg,cos}=fracTex(n.v);
+    if(!neg)return{tex:cos,lvl:0};
+    if(esPrimer)return{tex:'-'+cos,lvl:0};
+    return{tex:'\\left(-'+cos+'\\right)',lvl:1};
+  }
+  if(n.t==='pot'){
+    if(n.a.t==='num'){
+      const{neg,cos}=fracTex(n.a.v);
+      const calP=neg||n.a.v.d!==1n;
+      const base=calP?'\\left('+(neg?'-':'')+cos+'\\right)':cos;
+      return{tex:base+'^{'+n.e+'}',lvl:calP?1:0};
+    }
+    const r=rTex(n.a,true);
+    const p=PAR_TEX[Math.min(r.lvl,2)];
+    return{tex:p[0]+r.tex+p[1]+'^{'+n.e+'}',lvl:r.lvl+1};
+  }
+  const wA=calParens(n.a,n.op,false);
+  const wB=calParens(n.b,n.op,true);
+  let A=rTex(n.a,wA?true:esPrimer);
+  let B=rTex(n.b,wB?true:false);
+  if(wA){const p=PAR_TEX[Math.min(A.lvl,2)];A={tex:p[0]+A.tex+p[1],lvl:A.lvl+1}}
+  if(wB){const p=PAR_TEX[Math.min(B.lvl,2)];B={tex:p[0]+B.tex+p[1],lvl:B.lvl+1}}
+  return{tex:`${A.tex} ${OP_TEX[n.op]} ${B.tex}`,lvl:Math.max(A.lvl,B.lvl)};
+}
+
+/* — variant de reserva HTML/CSS (mateixes regles) — */
+function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[c])}
+const PAR_FB=[['(',')'],['[',']'],['{','}']];
+const OP_FB={'+':'+','-':'−','*':'·','/':':'};
+function fracFb(f){
+  const neg=f.n<0n,an=babs(f.n);
+  const cos=f.d===1n
+    ?`<span class="fb-w">${an}</span>`
+    :`<span class="fb"><span class="fb-n">${an}</span><span class="fb-d">${f.d}</span></span>`;
+  return{neg,cos};
+}
+function rFb(n,esPrimer){
+  if(n.t==='num'){
+    const{neg,cos}=fracFb(n.v);
+    if(!neg)return{h:cos,lvl:0};
+    if(esPrimer)return{h:`<span class="fb-w">−</span>${cos}`,lvl:0};
+    return{h:`<span class="fb-w">(−</span>${cos}<span class="fb-w">)</span>`,lvl:1};
+  }
+  if(n.t==='pot'){
+    if(n.a.t==='num'){
+      const{neg,cos}=fracFb(n.a.v);
+      const calP=neg||n.a.v.d!==1n;
+      const base=calP?`<span class="fb-w">(${neg?'−':''}</span>${cos}<span class="fb-w">)</span>`:cos;
+      return{h:`${base}<span class="fb-sup">${n.e}</span>`,lvl:calP?1:0};
+    }
+    const r=rFb(n.a,true);
+    const p=PAR_FB[Math.min(r.lvl,2)];
+    return{h:`<span class="fb-w">${p[0]}</span>${r.h}<span class="fb-w">${p[1]}</span><span class="fb-sup">${n.e}</span>`,lvl:r.lvl+1};
+  }
+  const wA=calParens(n.a,n.op,false);
+  const wB=calParens(n.b,n.op,true);
+  let A=rFb(n.a,wA?true:esPrimer);
+  let B=rFb(n.b,wB?true:false);
+  if(wA){const p=PAR_FB[Math.min(A.lvl,2)];A={h:`<span class="fb-w">${p[0]}</span>${A.h}<span class="fb-w">${p[1]}</span>`,lvl:A.lvl+1}}
+  if(wB){const p=PAR_FB[Math.min(B.lvl,2)];B={h:`<span class="fb-w">${p[0]}</span>${B.h}<span class="fb-w">${p[1]}</span>`,lvl:B.lvl+1}}
+  return{h:`${A.h} <span class="fb-w">${OP_FB[n.op]}</span> ${B.h}`,lvl:Math.max(A.lvl,B.lvl)};
+}
+
+let KATEX_OK=false;
+function pinta(el,node){
+  if(KATEX_OK){
+    try{katex.render(rTex(node,true).tex,el,{throwOnError:false,displayMode:false});return}
+    catch(e){}
+  }
+  el.innerHTML=`<span style="display:inline-flex;align-items:center;gap:.3em;flex-wrap:nowrap">${rFb(node,true).h}</span>`;
+}
+function pintaFraccio(el,f){
+  if(KATEX_OK){
+    try{
+      const{neg,cos}=fracTex(f);
+      katex.render((neg?'-':'')+cos,el,{throwOnError:false});
+      return;
+    }catch(e){}
+  }
+  const{neg,cos}=fracFb(f);
+  el.innerHTML=(neg?'<span class="fb-w">−</span>':'')+cos;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   7. PERSISTÈNCIA — desactivada per defecte; l'usuari decideix.
+   localStorage embolcallat: en un iframe de tercers pot llançar
+   excepció, i llavors degrada a memòria sense trencar res.
+   ═══════════════════════════════════════════════════════════════════ */
+const CLAU='combina.v1';
+let memoria=null;
+const Magatzem={
+  disponible(){
+    try{const k='__t';localStorage.setItem(k,'1');localStorage.removeItem(k);return true}
+    catch(e){return false}
+  },
+  llegeix(){
+    if(!this.disponible())return memoria;
+    try{const s=localStorage.getItem(CLAU);return s?JSON.parse(s):null}catch(e){return memoria}
+  },
+  desa(d){
+    memoria=d;
+    if(!this.disponible())return;
+    try{localStorage.setItem(CLAU,JSON.stringify(d))}catch(e){}
+  },
+  esborra(){
+    memoria=null;
+    if(!this.disponible())return;
+    try{localStorage.removeItem(CLAU)}catch(e){}
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   8. ESTAT I INTERFÍCIE
+   ═══════════════════════════════════════════════════════════════════ */
+const $=id=>document.getElementById(id);
+const E={
+  nivells:$('nivells'),mA:$('mA'),mB:$('mB'),medalla:$('medalla'),
+  enunciat:$('enunciat'),operacio:$('operacio'),passos:$('passos'),
+  resposta:$('resposta'),accionsB:$('accionsB'),
+  signe:$('signe'),num:$('num'),den:$('den'),fracIn:$('fracIn'),fracNota:$('fracNota'),
+  comprova:$('comprova'),nova:$('nova'),novaB:$('novaB'),
+  retorn:$('retorn'),retornCap:$('retornCap'),retornCos:$('retornCos'),retornMat:$('retornMat'),
+  sw:$('sw'),swAjuda:$('swAjuda'),marcador:$('marcador'),
+  sRatxa:$('sRatxa'),sEncerts:$('sEncerts'),sIntents:$('sIntents'),esborra:$('esborra'),
+  avisKatex:$('avisKatex')
+};
+const S={
+  mode:'A',nivell:1,repte:null,resolt:false,
+  descartats:new Set(),progres:false,
+  dades:{ratxa:0,encerts:0,intents:0,maxNivell:1,perNivell:{}}
+};
+
+function ferNivells(){
+  E.nivells.innerHTML='';
+  for(let i=1;i<=10;i++){
+    const b=document.createElement('button');
+    b.textContent=i;
+    b.className=CONFIG[i].grup;
+    b.setAttribute('aria-pressed',String(i===S.nivell));
+    b.setAttribute('aria-label',`Nivell ${i}: ${CONFIG[i].desc}`);
+    b.title=CONFIG[i].desc;
+    b.onclick=()=>{S.nivell=i;ferNivells();nouRepte()};
+    E.nivells.appendChild(b);
+  }
+  E.medalla.textContent=`Nivell ${S.nivell}`;
+}
+
+function tancaRetorn(){E.retorn.dataset.obert='0'}
+function mostraRetorn(be,titol,cos,fraccio){
+  E.retorn.dataset.to=be?'be':'mal';
+  E.retornCap.textContent=(be?'⭐ ':'')+titol;
+  E.retornCos.innerHTML=cos||'';
+  E.retornMat.innerHTML='';
+  if(fraccio)pintaFraccio(E.retornMat,fraccio);
+  E.retorn.dataset.obert='1';
+}
+
+/* ── Mode A: entrada adaptativa segons el nivell ──────────────── */
+function pintaModeA(){
+  const c=CONFIG[S.nivell];
+  E.passos.hidden=true;
+  E.passos.innerHTML=''; // fora les línies del mode B i els seus clics
+  E.resposta.style.display='';
+  E.accionsB.hidden=true;
+  E.enunciat.textContent=c.frac
+    ?'Calcula el resultat. Fracció irreductible!'
+    :'Calcula el resultat';
+  pinta(E.operacio,S.repte.node);
+  /* Fins al nivell 4 no hi ha fraccions: un sol camp. El botó de signe
+     només apareix on hi pot haver resultats negatius (3–4 i 7–10). */
+  E.fracIn.dataset.frac=c.frac?'1':'0';
+  E.signe.hidden=!c.signe;
+  E.num.setAttribute('aria-label',c.frac?'Numerador':'Resultat');
+  E.fracNota.textContent=c.frac?'Deixa l\'1 a baix si el resultat és enter':'Escriu el resultat';
+  E.num.value='';E.den.value='';
+  posaSigne('+');
+  E.num.focus({preventScroll:true});
+}
+function posaSigne(s){
+  E.signe.dataset.signe=s;
+  E.signe.textContent=s==='-'?'−':'+';
+  E.signe.setAttribute('aria-label',`Canvia el signe de la resposta. Ara és ${s==='-'?'negatiu':'positiu'}.`);
+}
+function comprovaA(){
+  if(S.resolt)return;
+  const c=CONFIG[S.nivell];
+  const nRaw=E.num.value.trim();
+  const dRaw=c.frac?(E.den.value.trim()||'1'):'1';
+  if(!/^\d+$/.test(nRaw)||!/^\d+$/.test(dRaw)){
+    mostraRetorn(false,'Torna a provar',
+      c.signe?'Escriu només xifres. El signe es posa amb el botó <b>+/−</b>.':'Escriu només xifres.');
+    return;
+  }
+  if(dRaw==='0'){mostraRetorn(false,'Torna a provar','El denominador no pot ser <b>0</b>.');return}
+  let un,ud;
+  try{
+    const sg=(c.signe&&E.signe.dataset.signe==='-')?-1n:1n;
+    un=sg*BigInt(nRaw); ud=BigInt(dRaw);
+  }catch(e){mostraRetorn(false,'Torna a provar','El nombre és massa llarg.');return}
+  const bo=S.repte.res;
+  /* Comparació racional exacta: n1·d2 = n2·d1. Mai amb decimals. */
+  if(un*bo.d!==bo.n*ud){
+    registraFinal(false);
+    mostraRetorn(false,'Torna a provar','Repassa l\'ordre: primer els parèntesis de dins cap enfora, després les potències, després multiplicacions i divisions, i al final sumes i restes.');
+    return;
+  }
+  /* Equivalent però no simplificada: no es dona per bona. */
+  if((bgcd(un,ud)||1n)!==1n){
+    registraFinal(false);
+    mostraRetorn(false,'Torna a provar','El resultat és equivalent, però encara es pot <b>simplificar</b>. Divideix numerador i denominador pel seu màxim comú divisor.');
+    return;
+  }
+  S.resolt=true;
+  registraFinal(true);
+  mostraRetorn(true,'Molt bé!',c.frac?'Resultat correcte i en forma irreductible.':'Resultat correcte.');
+}
+
+/* ── Mode B ───────────────────────────────────────────────────── */
+function pintaModeB(){
+  E.resposta.style.display='none';
+  E.accionsB.hidden=false;
+  E.passos.hidden=false;
+  E.enunciat.textContent='Aquesta resolució té un error amagat. Clica la primera línia on apareix!';
+  pinta(E.operacio,S.repte.linies[0]);
+  E.passos.innerHTML='';
+  S.descartats.clear();
+  /* La línia 0 és l'enunciat (a dalt). Les clicables van de la 1
+     endavant, numerades com les escriuria l'alumnat a la llibreta. */
+  for(let i=1;i<S.repte.linies.length;i++){
+    const li=document.createElement('li');
+    const b=document.createElement('button');
+    b.className='pas';b.type='button';b.dataset.i=String(i);
+    b.setAttribute('aria-label',`Línia ${i}. Marca-la com la primera línia amb l'error.`);
+    const int=document.createElement('div');int.className='pas-int';
+    const nm=document.createElement('div');nm.className='pas-num';nm.textContent=i;
+    const mt=document.createElement('div');mt.className='pas-mat';
+    pinta(mt,S.repte.linies[i]);
+    int.appendChild(nm);int.appendChild(mt);
+    b.appendChild(int);
+    b.onclick=()=>clicaPas(i,b);
+    li.appendChild(b);
+    E.passos.appendChild(li);
+  }
+}
+function clicaPas(i,btn){
+  if(S.resolt||S.descartats.has(i))return;
+  if(i===S.repte.indexError){
+    S.resolt=true;
+    registraFinal(true);
+    btn.dataset.estat='trobat';
+    btn.disabled=true;
+    afegeixEtiq(btn,'Aquí!');
+    document.querySelectorAll('.pas').forEach(p=>{p.disabled=true});
+    mostraRetorn(true,'Molt bé!',`<b>${esc(S.repte.error.nom)}.</b> ${esc(S.repte.error.expl)}`);
+  }else{
+    registraFinal(false);
+    S.descartats.add(i);
+    btn.dataset.estat='descartat';
+    btn.disabled=true;
+    mostraRetorn(false,'Torna a provar','Aquesta línia se segueix bé de l\'anterior. Recorda: a partir de l\'error tot continua coherent. Busca la <b>primera</b> línia que no es dedueix de la de sobre.');
+    const queden=S.repte.linies.length-1-S.descartats.size;
+    if(queden<=1){
+      const bo=document.querySelector(`.pas[data-i="${S.repte.indexError}"]`);
+      if(bo){bo.dataset.estat='revelat';afegeixEtiq(bo,'L\'error');}
+      document.querySelectorAll('.pas').forEach(p=>{p.disabled=true});
+      S.resolt=true;
+      mostraRetorn(false,'Torna a provar',`L'error era a la línia <b>${S.repte.indexError}</b>. <b>${esc(S.repte.error.nom)}.</b> ${esc(S.repte.error.expl)}`);
+    }
+  }
+}
+function afegeixEtiq(btn,txt){
+  if(btn.querySelector('.pas-etiq'))return;
+  const s=document.createElement('span');
+  s.className='pas-etiq';s.textContent=txt;
+  btn.querySelector('.pas-int').appendChild(s);
+}
+
+/* ── Progrés ──────────────────────────────────────────────────── */
+function registraFinal(encert){
+  if(!S.progres)return;
+  const d=S.dades;
+  d.intents++;
+  if(encert){d.encerts++;d.ratxa++;if(S.nivell>d.maxNivell)d.maxNivell=S.nivell}
+  else d.ratxa=0;
+  const k=`${S.mode}${S.nivell}`;
+  d.perNivell[k]=d.perNivell[k]||{i:0,e:0};
+  d.perNivell[k].i++;
+  if(encert)d.perNivell[k].e++;
+  Magatzem.desa(d);
+  pintaMarcador();
+}
+function pintaMarcador(){
+  E.sRatxa.textContent=S.dades.ratxa;
+  E.sEncerts.textContent=S.dades.encerts;
+  E.sIntents.textContent=S.dades.intents;
+}
+function posaProgres(actiu){
+  S.progres=actiu;
+  E.sw.setAttribute('aria-checked',String(actiu));
+  E.marcador.hidden=!actiu;
+  if(actiu){
+    const d=Magatzem.llegeix();
+    if(d)S.dades=Object.assign(S.dades,d);
+    Magatzem.desa(S.dades);
+    pintaMarcador();
+    E.swAjuda.textContent=Magatzem.disponible()
+      ?'Activat. El progrés es desa només en aquest navegador i dispositiu. Sense servidor ni registre.'
+      :'Activat. Aquí el navegador no permet desar dades: el progrés es perdrà en tancar la pàgina.';
+  }else{
+    E.swAjuda.textContent='Desactivat. Cada partida comença de zero.';
+  }
+}
+
+/* ── Cicle de joc ─────────────────────────────────────────────── */
+function nouRepte(){
+  S.resolt=false;
+  tancaRetorn();
+  E.medalla.textContent=`Nivell ${S.nivell}`;
+  E.operacio.textContent='';
+  if(S.mode==='A'){
+    const g=generaExpressio(S.nivell);
+    if(!g){E.operacio.textContent='No s\'ha pogut generar l\'operació. Prem «Una altra!».';return}
+    S.repte=g;
+    pintaModeA();
+  }else{
+    for(let i=0;i<80;i++){
+      const g=generaExpressio(S.nivell);
+      if(!g)continue;
+      const r=generaAmbError(g.node);
+      if(r){S.repte=r;pintaModeB();return}
+    }
+    E.operacio.textContent='No s\'ha pogut generar l\'operació. Prem «Una altra!».';
+  }
+}
+function posaMode(m){
+  S.mode=m;
+  E.mA.setAttribute('aria-pressed',String(m==='A'));
+  E.mB.setAttribute('aria-pressed',String(m==='B'));
+  nouRepte();
+}
+
+/* ── Enllaços ─────────────────────────────────────────────────── */
+E.mA.onclick=()=>posaMode('A');
+E.mB.onclick=()=>posaMode('B');
+E.comprova.onclick=comprovaA;
+E.nova.onclick=nouRepte;
+E.novaB.onclick=nouRepte;
+E.signe.onclick=()=>posaSigne(E.signe.dataset.signe==='-'?'+':'-');
+E.sw.onclick=()=>posaProgres(E.sw.getAttribute('aria-checked')!=='true');
+E.esborra.onclick=()=>{
+  Magatzem.esborra();
+  S.dades={ratxa:0,encerts:0,intents:0,maxNivell:1,perNivell:{}};
+  pintaMarcador();
+};
+[E.num,E.den].forEach(inp=>{
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();comprovaA()}});
+  inp.addEventListener('input',()=>{inp.value=inp.value.replace(/[^\d]/g,'')});
+});
+
+/* ── Arrencada ────────────────────────────────────────────────── */
+function arrenca(){
+  KATEX_OK=!window.__katexJSFail&&!window.__katexCSSFail&&typeof katex!=='undefined';
+  if(KATEX_OK){
+    /* Comprovació real: que renderitzi de veritat, no només que existeixi. */
+    try{
+      const p=document.createElement('span');
+      katex.render('\\dfrac{1}{2}',p,{throwOnError:true});
+      KATEX_OK=p.querySelector('.katex')!==null;
+    }catch(e){KATEX_OK=false}
+  }
+  E.avisKatex.hidden=KATEX_OK;
+  ferNivells();
+  posaProgres(false);
+  nouRepte();
+}
+if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',arrenca);
+else arrenca();
+</script>
+</body>
+</html>
