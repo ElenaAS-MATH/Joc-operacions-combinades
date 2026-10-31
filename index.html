@@ -359,6 +359,19 @@ footer.carta{
   *,*::after{transition:none!important;animation:none!important}
 }
 </style>
+<style id="eas-autoria-css">
+/* Botó «Autoria ⓘ» i declaració d'ús d'IA (mateix model que la web principal) */
+.eas-autoria{background:none;border:0;padding:0;margin:0;font:inherit;color:inherit;cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px}
+.eas-autoria:hover{color:var(--violeta)}
+.eas-autoria:focus-visible,.eas-tanca:focus-visible{outline:3px solid #EA5B0C;outline-offset:2px;border-radius:4px}
+.eas-ia{margin:auto;max-width:min(34rem,calc(100% - 2rem));padding:1.4rem 1.6rem;background:#FAFAF7;color:#1A1814;border:2px solid #EA5B0C;border-radius:16px;box-shadow:0 20px 50px rgba(20,18,15,.35);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:1rem;font-weight:400;line-height:1.6;text-align:left}
+.eas-ia::backdrop{background:rgba(20,18,15,.55)}
+.eas-ia p{margin:0 0 1rem;color:#1A1814}
+.eas-ia strong{color:#AC3E00}
+.eas-tanca{font:500 .85rem/1 ui-monospace,Consolas,monospace;background:#EA5B0C;color:#14120F;border:0;border-radius:999px;padding:.6rem 1.1rem;cursor:pointer}
+.eas-tanca:hover{background:#FF6E1A}
+.eas-ia.eas-fb{position:fixed;inset:0;height:fit-content;z-index:1000}
+</style>
 </head>
 <body>
 
@@ -447,7 +460,7 @@ footer.carta{
   </footer>
 
   <div class="llicencia">
-    <a href="https://elenaas-math.github.io/">Autoria:</a> © 2026 by <a href="https://elenaas-math.github.io/">Elena Álvarez Spagnolo</a> is licensed under <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/">CC BY-NC-ND 4.0</a><img src="https://mirrors.creativecommons.org/presskit/icons/cc.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;"><img src="https://mirrors.creativecommons.org/presskit/icons/by.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;"><img src="https://mirrors.creativecommons.org/presskit/icons/nc.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;"><img src="https://mirrors.creativecommons.org/presskit/icons/nd.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;">
+    <button type="button" class="eas-autoria" popovertarget="eas-declaracio-ia" aria-haspopup="dialog" title="Mostra la declaració d’ús d’IA">Autoria<span aria-hidden="true">&nbsp;ⓘ</span>:</button> © 2026 by <a href="https://elenaas-math.github.io/">Elena Álvarez Spagnolo</a> is licensed under <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/">CC BY-NC-ND 4.0</a><img src="https://mirrors.creativecommons.org/presskit/icons/cc.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;"><img src="https://mirrors.creativecommons.org/presskit/icons/by.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;"><img src="https://mirrors.creativecommons.org/presskit/icons/nc.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;"><img src="https://mirrors.creativecommons.org/presskit/icons/nd.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;">
   </div>
 </div>
 
@@ -1207,6 +1220,22 @@ function arrenca(){
 }
 if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',arrenca);
 else arrenca();
+</script>
+
+<div id="eas-declaracio-ia" class="eas-ia" popover role="dialog" aria-labelledby="eas-titol-ia">
+  <p><strong id="eas-titol-ia">Declaració d’ús d’IA:</strong> aquest contingut s’ha elaborat amb el suport d’eines d’intel·ligència artificial generativa: Claude, en tasques de programació, estructuració i part de la redacció. Els continguts de base són d’elaboració pròpia. L’autora n’ha dissenyat la proposta didàctica i n’ha revisat, adaptat i validat tot el contingut, i n’assumeix la plena responsabilitat.</p>
+  <button type="button" class="eas-tanca" popovertarget="eas-declaracio-ia" popovertargetaction="hide">Tanca</button>
+</div>
+<script>
+(function(){
+  var d = document.getElementById('eas-declaracio-ia');
+  if (!d || 'popover' in HTMLElement.prototype) return;
+  d.hidden = true; d.classList.add('eas-fb');
+  document.querySelectorAll('[popovertarget="eas-declaracio-ia"]').forEach(function(b){
+    b.addEventListener('click', function(){ d.hidden = !d.hidden; if (!d.hidden) d.querySelector('.eas-tanca').focus(); });
+  });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape') d.hidden = true; });
+})();
 </script>
 </body>
 </html>
